@@ -10,7 +10,7 @@ jobs:
     runs-on: windows-latest
     
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     
     - name: Set up Python
       uses: actions/setup-python@v4
@@ -31,7 +31,8 @@ jobs:
         pyinstaller --onefile --windowed --icon=app.ico --name="Questions Similarity Finder" main.py
     
     - name: Upload artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: Questions Similarity Finder
-        path: dist/Questions\ Similarity\ Finder.exe
+        path: dist/Questions Similarity Finder.exe
+        retention-days: 30
