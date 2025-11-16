@@ -1,16 +1,14 @@
 import re
 from typing import List
+from utils.settings import Settings
 
 class ArabicProcessor:
     """Process Arabic text for similarity comparison"""
     
-    # Common Arabic stop words that don't add meaning
-    STOP_WORDS = {
-        'في', 'من', 'إلى', 'على', 'عن', 'مع', 'هل', 'ما', 'ماذا', 'كيف',
-        'لماذا', 'متى', 'أين', 'هذا', 'هذه', 'ذلك', 'تلك', 'التي', 'الذي',
-        'و', 'أو', 'ثم', 'لكن', 'أن', 'إن', 'لا', 'نعم', 'قد', 'كان',
-        'يكون', 'كل', 'بعض', 'أي', 'هناك', 'هنا', 'عند', 'لدى', 'ال'
-    }
+    @staticmethod
+    def get_stop_words():
+        """Get current stop words from settings"""
+        return Settings().stop_words
     
     @staticmethod
     def normalize_arabic(text: str) -> str:
@@ -35,8 +33,9 @@ class ArabicProcessor:
     @staticmethod
     def remove_stop_words(text: str) -> str:
         """Remove common Arabic stop words"""
+        stop_words = ArabicProcessor.get_stop_words()
         words = text.split()
-        filtered_words = [word for word in words if word not in ArabicProcessor.STOP_WORDS]
+        filtered_words = [word for word in words if word not in stop_words]
         return ' '.join(filtered_words)
     
     @staticmethod

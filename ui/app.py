@@ -12,6 +12,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from utils.data_loader import DataLoader
 from utils.similarity import SimilarityCalculator
+from ui.similarity_matrix_tab import SimilarityMatrixTab
+from ui.settings_dialog import SettingsDialog
 
 class QuestionsSim:
     def __init__(self, root):
@@ -28,7 +30,7 @@ class QuestionsSim:
     
     def setup_ui(self):
         """Setup the user interface"""
-        # Top frame for file selection
+        # Top frame for file selection ONLY
         top_frame = ttk.Frame(self.root, padding="10")
         top_frame.pack(fill=tk.X)
         
@@ -38,36 +40,11 @@ class QuestionsSim:
                                     font=('Arial', 10))
         self.file_label.pack(side=tk.LEFT, padx=10)
         
-        # Minimum similarity settings
-        ttk.Separator(top_frame, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=10)
+        # Add settings button
+        ttk.Button(top_frame, text="⚙️ Settings", 
+                  command=self.open_settings).pack(side=tk.RIGHT, padx=5)
         
-        similarity_frame = ttk.Frame(top_frame)
-        similarity_frame.pack(side=tk.LEFT, padx=5)
-        
-        ttk.Label(similarity_frame, text="Minimum Similarity:",
-                 font=('Arial', 10)).pack(side=tk.LEFT, padx=5)
-        
-        # Spinbox for percentage
-        self.similarity_var = tk.DoubleVar(value=30.0)
-        similarity_spinbox = ttk.Spinbox(similarity_frame, 
-                                        from_=0, 
-                                        to=100, 
-                                        increment=5,
-                                        textvariable=self.similarity_var,
-                                        width=10,
-                                        command=self.on_similarity_change)
-        similarity_spinbox.pack(side=tk.LEFT, padx=5)
-        
-        # Bind Enter key to update
-        similarity_spinbox.bind('<Return>', lambda e: self.on_similarity_change())
-        similarity_spinbox.bind('<FocusOut>', lambda e: self.on_similarity_change())
-        
-        ttk.Label(similarity_frame, text="%", 
-                 font=('Arial', 10, 'bold')).pack(side=tk.LEFT)
-        
-        # Apply button
-        ttk.Button(similarity_frame, text="Apply", 
-                  command=self.on_similarity_change).pack(side=tk.LEFT, padx=5)
+        # Remove the similarity control from here - it will be in each tab
         
         # Progress bar frame
         self.progress_frame = ttk.Frame(self.root)
@@ -76,9 +53,53 @@ class QuestionsSim:
         self.progress_bar = ttk.Progressbar(self.progress_frame, mode='indeterminate')
         self.progress_label = ttk.Label(self.progress_frame, text="")
         
+        # Create notebook (tabs)
+        self.notebook = ttk.Notebook(self.root)
+        self.notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        # Tab 1: Single Question Similarity
+        self.single_tab = ttk.Frame(self.notebook)
+        self.notebook.add(self.single_tab, text="🔍 Single Question")
+        self.setup_single_question_tab()
+        
+        # Tab 2: Similarity Matrix
+        self.matrix_tab_frame = ttk.Frame(self.notebook)
+        self.notebook.add(self.matrix_tab_frame, text="📊 All Questions Matrix")
+        self.matrix_tab = SimilarityMatrixTab(self.matrix_tab_frame, 
+                                             self.similarity_calc,
+                                             self.ids,
+                                             self.questions,
+                                             30.0)  # Default min similarity
+
+    def setup_single_question_tab(self):
+        """إعداد تاب السؤال الواحد"""
+        # Add similarity control at the top of THIS tab
+        control_frame = ttk.Frame(self.single_tab, padding="10")
+        control_frame.pack(fill=tk.X)
+        
+        ttk.Label(control_frame, text="Minimum Similarity:", 
+                 font=('Arial', 10)).pack(side=tk.LEFT, padx=5)
+        
+        self.single_similarity_var = tk.DoubleVar(value=30.0)
+        similarity_spinbox = ttk.Spinbox(control_frame, 
+                                        from_=0, 
+                                        to=100, 
+                                        increment=5,
+                                        textvariable=self.single_similarity_var,
+                                        width=10,
+                                        command=self.on_single_similarity_change)
+        similarity_spinbox.pack(side=tk.LEFT, padx=5)
+        similarity_spinbox.bind('<Return>', lambda e: self.on_single_similarity_change())
+        
+        ttk.Label(control_frame, text="%", 
+                 font=('Arial', 10, 'bold')).pack(side=tk.LEFT)
+        
+        ttk.Button(control_frame, text="Apply", 
+                  command=self.on_single_similarity_change).pack(side=tk.LEFT, padx=5)
+        
         # Main container
-        main_container = ttk.PanedWindow(self.root, orient=tk.HORIZONTAL)
-        main_container.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        main_container = ttk.PanedWindow(self.single_tab, orient=tk.HORIZONTAL)
+        main_container.pack(fill=tk.BOTH, expand=True)
         
         # Left panel - Questions list
         left_frame = ttk.Frame(main_container)
@@ -114,7 +135,6 @@ class QuestionsSim:
         x_scrollbar = ttk.Scrollbar(list_frame, orient=tk.HORIZONTAL)
         x_scrollbar.pack(side=tk.BOTTOM, fill=tk.X)
         
-        # Treeview for better formatting
         self.questions_tree = ttk.Treeview(list_frame, 
                                           columns=('ID', 'Question'),
                                           show='tree headings',
@@ -136,7 +156,6 @@ class QuestionsSim:
         
         self.questions_tree.bind('<<TreeviewSelect>>', self.on_question_select)
         
-        # Alternating row colors
         self.questions_tree.tag_configure('oddrow', background='#f0f0f0')
         self.questions_tree.tag_configure('evenrow', background='white')
         
@@ -209,32 +228,27 @@ class QuestionsSim:
         self.similar_tree.tag_configure('medium', background='#fff9c4')  # Yellow
         self.similar_tree.tag_configure('low', background='#ffccbc')  # Orange
     
-    def on_similarity_change(self):
-        """تحديث الحد الأدنى للتشابه وإعادة عرض النتائج"""
+    def on_single_similarity_change(self):
+        """Update minimum similarity for single question tab"""
         try:
-            new_value = self.similarity_var.get()
+            new_value = self.single_similarity_var.get()
             
-            # التحقق من صحة القيمة
             if new_value < 0:
                 new_value = 0
-                self.similarity_var.set(0)
+                self.single_similarity_var.set(0)
             elif new_value > 100:
                 new_value = 100
-                self.similarity_var.set(100)
+                self.single_similarity_var.set(100)
             
-            self.min_similarity = new_value
-            
-            # إعادة عرض النتائج إذا كان هناك سؤال محدد
+            # Refresh current selection
             selection = self.questions_tree.selection()
             if selection and len(self.questions) > 0:
                 actual_idx = int(selection[0])
                 self.display_similar_questions(actual_idx)
         
         except tk.TclError:
-            # إذا كانت القيمة غير صحيحة، استخدم القيمة الافتراضية
-            self.similarity_var.set(30.0)
-            self.min_similarity = 30.0
-    
+            self.single_similarity_var.set(30.0)
+
     def show_progress(self, message):
         """Show progress bar"""
         self.progress_label.config(text=message)
@@ -287,6 +301,10 @@ class QuestionsSim:
         self.file_label.config(text=f"✓ {filename} ({len(self.questions)} questions)")
         self.count_label.config(text=f"({len(self.questions)})")
         self.populate_questions_list()
+        
+        # Update matrix tab with default min similarity
+        self.matrix_tab.update_data(self.ids, self.questions, 30.0)
+        
         messagebox.showinfo("Success", f"Loaded {len(self.questions)} questions successfully!")
     
     def on_load_error(self, error_message):
@@ -410,14 +428,15 @@ class QuestionsSim:
         
         similar = self.similarity_calc.get_similar_questions(query_idx, top_n=100)
         
-        # تصفية النتائج حسب الحد الأدنى للتشابه
+        # Use the tab-specific minimum similarity
+        min_similarity = self.single_similarity_var.get()
         filtered_similar = [(idx, score) for idx, score in similar 
-                           if score * 100 >= self.min_similarity]
+                           if score * 100 >= min_similarity]
         
         if not filtered_similar:
             self.similar_tree.insert('', tk.END, 
                                     values=("N/A", "N/A", 
-                                           f"لا توجد أسئلة متشابهة بنسبة {self.min_similarity}% أو أكثر"))
+                                           f"No similar questions with ≥{min_similarity}%"))
             self.similar_count_label.config(text="(0 results)")
             self.export_button.config(state=tk.DISABLED)
             return
@@ -425,8 +444,6 @@ class QuestionsSim:
         # تحديث عداد النتائج
         result_text = f"({len(filtered_similar)} result{'s' if len(filtered_similar) > 1 else ''})"
         self.similar_count_label.config(text=result_text)
-        
-        # تفعيل زر التصدير
         self.export_button.config(state=tk.NORMAL)
         
         for idx, score in filtered_similar:
@@ -445,3 +462,18 @@ class QuestionsSim:
                                            self.ids[idx], 
                                            self.questions[idx]),
                                     tags=(tag,))
+    
+    def open_settings(self):
+        """Open settings dialog"""
+        def on_settings_saved():
+            """Called when settings are saved"""
+            if self.ids and self.questions:
+                result = messagebox.askyesno("Recalculate?",
+                                            "Stop words have been changed.\n"
+                                            "Do you want to recalculate similarities now?")
+                if result:
+                    # Recalculate similarity matrix
+                    if hasattr(self, 'matrix_tab'):
+                        self.matrix_tab.calculate_all_similarities()
+        
+        SettingsDialog(self.root, on_save_callback=on_settings_saved)
