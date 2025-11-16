@@ -196,6 +196,7 @@ python main.py
 
 #### الوظيفة الرئيسية:
 
+
 **`load_excel(file_path)`**
 - يقرأ ملف Excel
 - يتحقق من وجود العمودين المطلوبين (id, question)
